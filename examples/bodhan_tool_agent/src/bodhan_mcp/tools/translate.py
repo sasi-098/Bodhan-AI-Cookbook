@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from bodhan_mcp.cache import cache
 from bodhan_mcp.client import bodhan_client
@@ -20,8 +20,8 @@ SUPPORTED_LANGUAGES = {
 def run_translate(
     text: str,
     target_lang: str,
-    source_lang: Optional[str] = None,
-) -> Dict[str, Any]:
+    source_lang: str | None = None,
+) -> dict[str, Any]:
     """Translate text using Bodhan Indic-Translate.
     
     Supports 25 Indic languages and English. Handles Indic-to-Indic translations

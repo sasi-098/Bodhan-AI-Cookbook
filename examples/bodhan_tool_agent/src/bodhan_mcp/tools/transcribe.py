@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from bodhan_mcp.cache import cache
 from bodhan_mcp.client import bodhan_client
@@ -14,8 +14,8 @@ from bodhan_mcp.tools.media_utils import chunk_wav_audio, inspect_audio_file
 
 def run_transcribe(
     audio_path: str,
-    language: Optional[str] = None,
-) -> Dict[str, Any]:
+    language: str | None = None,
+) -> dict[str, Any]:
     """Transcribe speech in an audio file using Indic-Transcribe.
     
     Handles audio files of any length by automatically splitting files longer than

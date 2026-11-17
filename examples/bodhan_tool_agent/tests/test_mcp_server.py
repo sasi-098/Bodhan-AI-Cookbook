@@ -1,6 +1,5 @@
 """Unit tests for Bodhan MCP Server registration and interfaces."""
 
-import pytest
 from bodhan_mcp.server import mcp_server
 
 

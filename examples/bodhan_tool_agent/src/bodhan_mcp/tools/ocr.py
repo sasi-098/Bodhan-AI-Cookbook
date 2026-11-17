@@ -5,7 +5,7 @@ from __future__ import annotations
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from bodhan_mcp.cache import cache
 from bodhan_mcp.client import bodhan_client
@@ -16,7 +16,7 @@ from bodhan_mcp.tools.media_utils import split_pdf_to_images
 def run_ocr(
     file_path: str,
     table_format: str = "markdown",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Extract text, tables, and layout structure from an image or PDF using Indic-OCR.
     
     Automatically detects multi-page PDFs, rasterizes each page, extracts text
@@ -35,8 +35,8 @@ def run_ocr(
 
     suffix = p.suffix.lower()
     total_cost = 0.0
-    page_markdowns: List[str] = []
-    all_blocks: List[Dict[str, Any]] = []
+    page_markdowns: list[str] = []
+    all_blocks: list[dict[str, Any]] = []
 
     try:
         with tempfile.TemporaryDirectory() as tmp_dir:

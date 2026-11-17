@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 from bodhan_mcp.tools.media_utils import (
     detect_script_and_language,
@@ -13,7 +13,7 @@ from bodhan_mcp.tools.media_utils import (
 )
 
 
-def run_inspect_media(file_path: str) -> Dict[str, Any]:
+def run_inspect_media(file_path: str) -> dict[str, Any]:
     """Inspect input files (audio, image, PDF, or text) to detect format, size, duration, pages, or language script.
     
     Helper tool to assist the agent in planning before invoking paid model tools.

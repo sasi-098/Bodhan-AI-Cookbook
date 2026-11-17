@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import threading
-from typing import Dict, Any, List
-from pydantic import BaseModel, Field
+from typing import Any
+
+from pydantic import BaseModel
 
 # Bodhan official rates in INR
 RATE_TRANSCRIBE_PER_MINUTE = 0.10       # ₹0.10 per input audio minute
@@ -49,7 +50,7 @@ class CostTracker:
     def __init__(self, max_cost_inr: float = 20.0):
         self.max_cost_inr = max_cost_inr
         self._total_cost_inr: float = 0.0
-        self._items: List[CostItem] = []
+        self._items: list[CostItem] = []
         self._lock = threading.Lock()
 
     @property
@@ -75,9 +76,9 @@ class CostTracker:
         with self._lock:
             return self._total_cost_inr >= self.max_cost_inr
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         with self._lock:
-            by_model: Dict[str, float] = {}
+            by_model: dict[str, float] = {}
             for item in self._items:
                 by_model[item.model] = round(by_model.get(item.model, 0.0) + item.cost_inr, 4)
             return {

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import Optional
+
 from mcp.server.mcpserver import MCPServer
 
 from bodhan_mcp.tools.inspect_tool import run_inspect_media
@@ -33,7 +33,7 @@ mcp_server = MCPServer(
         "into chunks and returns concatenated transcript with timestamps and cost."
     ),
 )
-def transcribe_tool(audio_path: str, language: Optional[str] = None) -> str:
+def transcribe_tool(audio_path: str, language: str | None = None) -> str:
     """Transcribe speech in an audio file.
     
     Args:
@@ -52,7 +52,7 @@ def transcribe_tool(audio_path: str, language: Optional[str] = None) -> str:
         "translations via English pivot when required."
     ),
 )
-def translate_tool(text: str, target_lang: str, source_lang: Optional[str] = None) -> str:
+def translate_tool(text: str, target_lang: str, source_lang: str | None = None) -> str:
     """Translate text into a target language.
     
     Args:
@@ -75,9 +75,9 @@ def translate_tool(text: str, target_lang: str, source_lang: Optional[str] = Non
 def speak_tool(
     text: str,
     language: str,
-    voice: Optional[str] = None,
+    voice: str | None = None,
     style: str = "educational lecture",
-    output_path: Optional[str] = None,
+    output_path: str | None = None,
 ) -> str:
     """Synthesize speech audio from text.
     

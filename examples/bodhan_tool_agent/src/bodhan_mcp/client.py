@@ -5,10 +5,10 @@ from __future__ import annotations
 import base64
 import json
 import mimetypes
-import os
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
+
 import requests
 
 from bodhan_mcp.config import (
@@ -25,12 +25,12 @@ from bodhan_mcp.tools.media_utils import create_synthetic_wav
 class BodhanClient:
     """Client for Bodhan's Indic AI APIs with robust error handling and mock support."""
 
-    def __init__(self, base_url: Optional[str] = None, timeout: float = 120.0):
+    def __init__(self, base_url: str | None = None, timeout: float = 120.0):
         self.base_url = (base_url or BASE_URL).rstrip("/")
         self.timeout = timeout
         self.session = requests.Session()
 
-    def _headers(self, api_key: str, content_type: Optional[str] = None) -> Dict[str, str]:
+    def _headers(self, api_key: str, content_type: str | None = None) -> dict[str, str]:
         headers = {"Authorization": f"Bearer {api_key}"}
         if content_type:
             headers["Content-Type"] = content_type
@@ -40,7 +40,7 @@ class BodhanClient:
         self,
         method: str,
         endpoint: str,
-        headers: Dict[str, str],
+        headers: dict[str, str],
         max_retries: int = 3,
         **kwargs: Any,
     ) -> requests.Response:
@@ -80,7 +80,7 @@ class BodhanClient:
     def transcribe_audio_chunk(
         self,
         audio_file: str | Path,
-        language: Optional[str] = None,
+        language: str | None = None,
     ) -> str:
         """Transcribe an audio chunk (<= 30s) using Indic-Transcribe."""
         p = Path(audio_file)
@@ -121,7 +121,7 @@ class BodhanClient:
         self,
         text: str,
         target_lang: str,
-        source_lang: Optional[str] = None,
+        source_lang: str | None = None,
     ) -> str:
         """Translate text into target language using Indic-Translate."""
         if not text.strip():
@@ -140,7 +140,7 @@ class BodhanClient:
             return translations.get(target_lang, f"[{target_lang}] {text}")
 
         headers = self._headers(TRANSLATE_KEY, content_type="application/json")
-        body: Dict[str, Any] = {
+        body: dict[str, Any] = {
             "text": text,
             "target_language": target_lang,
         }
@@ -157,9 +157,9 @@ class BodhanClient:
         self,
         text: str,
         language: str,
-        voice: Optional[str] = None,
+        voice: str | None = None,
         style: str = "educational lecture",
-        output_file: Optional[str | Path] = None,
+        output_file: str | Path | None = None,
     ) -> Path:
         """Synthesize a short sentence/chunk into PCM16 WAV audio using Indic-Speak."""
         out_p = Path(output_file) if output_file else Path(f"speech_{int(time.time()*1000)}.wav")
@@ -200,7 +200,7 @@ class BodhanClient:
         self,
         image_path: str | Path,
         table_format: str = "markdown",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Extract text, tables, and layout blocks from an image page using Indic-OCR."""
         p = Path(image_path)
         if not p.is_file():

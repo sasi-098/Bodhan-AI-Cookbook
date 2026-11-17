@@ -2,14 +2,13 @@
 
 import tempfile
 from pathlib import Path
-import pytest
 
 from bodhan_mcp.tools.inspect_tool import run_inspect_media
+from bodhan_mcp.tools.media_utils import create_synthetic_wav
 from bodhan_mcp.tools.ocr import run_ocr
 from bodhan_mcp.tools.speak import run_speak
 from bodhan_mcp.tools.transcribe import run_transcribe
 from bodhan_mcp.tools.translate import run_translate
-from bodhan_mcp.tools.media_utils import create_synthetic_wav
 
 
 def test_transcribe_tool():

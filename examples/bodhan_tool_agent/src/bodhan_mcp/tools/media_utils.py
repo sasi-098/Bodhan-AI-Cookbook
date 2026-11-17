@@ -3,19 +3,18 @@
 from __future__ import annotations
 
 import math
-import mimetypes
-import os
 import re
 import shutil
 import struct
 import wave
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
+
 from PIL import Image
 from pypdf import PdfReader
 
 
-def inspect_audio_file(path: str | Path) -> Dict[str, Any]:
+def inspect_audio_file(path: str | Path) -> dict[str, Any]:
     """Inspect WAV audio file properties (duration, sample rate, channels)."""
     p = Path(path)
     if not p.is_file():
@@ -56,8 +55,8 @@ def inspect_audio_file(path: str | Path) -> Dict[str, Any]:
 def chunk_wav_audio(
     path: str | Path,
     chunk_duration_sec: float = 25.0,
-    output_dir: Optional[Path] = None,
-) -> List[Path]:
+    output_dir: Path | None = None,
+) -> list[Path]:
     """Split a WAV audio file into chunks of duration <= chunk_duration_sec."""
     p = Path(path)
     if not p.is_file():
@@ -77,7 +76,7 @@ def chunk_wav_audio(
                 return [p]
 
             frames_per_chunk = int(framerate * chunk_duration_sec)
-            chunks: List[Path] = []
+            chunks: list[Path] = []
             chunk_idx = 0
 
             while True:
@@ -97,7 +96,7 @@ def chunk_wav_audio(
         return [p]
 
 
-def concatenate_wav_files(input_paths: List[Path], output_path: str | Path) -> Path:
+def concatenate_wav_files(input_paths: list[Path], output_path: str | Path) -> Path:
     """Concatenate multiple WAV files into a single WAV file."""
     if not input_paths:
         raise ValueError("No input files provided for concatenation.")
@@ -145,7 +144,7 @@ def create_synthetic_wav(
     return p
 
 
-def inspect_image_file(path: str | Path) -> Dict[str, Any]:
+def inspect_image_file(path: str | Path) -> dict[str, Any]:
     """Inspect image dimensions and format."""
     p = Path(path)
     if not p.is_file():
@@ -163,7 +162,7 @@ def inspect_image_file(path: str | Path) -> Dict[str, Any]:
         }
 
 
-def inspect_pdf_file(path: str | Path) -> Dict[str, Any]:
+def inspect_pdf_file(path: str | Path) -> dict[str, Any]:
     """Inspect PDF page count and metadata."""
     p = Path(path)
     if not p.is_file():
@@ -180,8 +179,8 @@ def inspect_pdf_file(path: str | Path) -> Dict[str, Any]:
 
 def split_pdf_to_images(
     pdf_path: str | Path,
-    output_dir: Optional[Path] = None,
-) -> List[Path]:
+    output_dir: Path | None = None,
+) -> list[Path]:
     """Convert each PDF page to an image.
     Uses pypdf embedded image extraction or generates rendered page placeholders.
     """
@@ -190,7 +189,7 @@ def split_pdf_to_images(
     target_dir.mkdir(parents=True, exist_ok=True)
 
     reader = PdfReader(str(p))
-    image_paths: List[Path] = []
+    image_paths: list[Path] = []
 
     for idx, page in enumerate(reader.pages):
         page_img_path = target_dir / f"page_{idx + 1:03d}.png"
@@ -206,7 +205,6 @@ def split_pdf_to_images(
 
         if not extracted:
             # Fallback: render text as image using Pillow
-            text = page.extract_text() or f"Page {idx + 1} content"
             img = Image.new("RGB", (1200, 1600), "white")
             # Save generated page
             img.save(page_img_path, "PNG")
@@ -216,7 +214,7 @@ def split_pdf_to_images(
     return image_paths
 
 
-def detect_script_and_language(text: str) -> Dict[str, Any]:
+def detect_script_and_language(text: str) -> dict[str, Any]:
     """Detect Indic script and infer language based on Unicode character counts."""
     counts = {
         "Devanagari": len(re.findall(r"[\u0900-\u097F]", text)),
@@ -261,11 +259,11 @@ def detect_script_and_language(text: str) -> Dict[str, Any]:
     }
 
 
-def split_text_into_sentences(text: str, max_chunk_chars: int = 250) -> List[str]:
+def split_text_into_sentences(text: str, max_chunk_chars: int = 250) -> list[str]:
     """Split text into sentences respecting Indic punctuation (danda ।, etc.) and length."""
     # Split by standard punctuation and Indic danda
     raw_sentences = re.split(r"(?<=[.!?।\n])\s+", text.strip())
-    chunks: List[str] = []
+    chunks: list[str] = []
     current_chunk = ""
 
     for s in raw_sentences:

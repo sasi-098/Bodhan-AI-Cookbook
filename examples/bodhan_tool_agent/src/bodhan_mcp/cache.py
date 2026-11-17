@@ -5,17 +5,18 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
+
 from bodhan_mcp.config import CACHE_DIR
 
 
 class ResponseCache:
     """Thread-safe persistent cache to prevent redundant paid model calls."""
 
-    def __init__(self, cache_dir: Optional[Path] = None):
+    def __init__(self, cache_dir: Path | None = None):
         self.cache_dir = cache_dir or CACHE_DIR
         self.cache_dir.mkdir(parents=True, exist_ok=True)
-        self._memory_cache: Dict[str, Any] = {}
+        self._memory_cache: dict[str, Any] = {}
 
     @staticmethod
     def compute_file_hash(path: str | Path) -> str:
@@ -49,7 +50,7 @@ class ResponseCache:
 
         return hasher.hexdigest()
 
-    def get(self, key: str) -> Optional[Dict[str, Any]]:
+    def get(self, key: str) -> dict[str, Any] | None:
         """Retrieve cached result by key if present."""
         if key in self._memory_cache:
             return self._memory_cache[key]
@@ -64,7 +65,7 @@ class ResponseCache:
                 return None
         return None
 
-    def set(self, key: str, value: Dict[str, Any]) -> None:
+    def set(self, key: str, value: dict[str, Any]) -> None:
         """Store result in cache."""
         self._memory_cache[key] = value
         disk_path = self.cache_dir / f"{key}.json"

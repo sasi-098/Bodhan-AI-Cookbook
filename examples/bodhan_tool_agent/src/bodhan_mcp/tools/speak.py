@@ -5,7 +5,7 @@ from __future__ import annotations
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from bodhan_mcp.cache import cache
 from bodhan_mcp.client import bodhan_client
@@ -20,10 +20,10 @@ from bodhan_mcp.tools.media_utils import (
 def run_speak(
     text: str,
     language: str,
-    voice: Optional[str] = None,
+    voice: str | None = None,
     style: str = "educational lecture",
-    output_path: Optional[str] = None,
-) -> Dict[str, Any]:
+    output_path: str | None = None,
+) -> dict[str, Any]:
     """Synthesize speech audio from text using Bodhan Indic-Speak.
     
     Splits long inputs into natural sentence chunks, synthesizes each,
@@ -54,7 +54,7 @@ def run_speak(
     try:
         # Split into short sentence chunks to stay under model limits
         chunks = split_text_into_sentences(text, max_chunk_chars=220)
-        temp_audio_files: List[Path] = []
+        temp_audio_files: list[Path] = []
         total_cost = 0.0
 
         with tempfile.TemporaryDirectory() as tmp_dir:

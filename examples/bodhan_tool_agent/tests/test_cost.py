@@ -1,12 +1,11 @@
 """Unit tests for cost calculations and budget tracking."""
 
-import pytest
 from bodhan_mcp.cost import (
     CostTracker,
+    calculate_ocr_cost,
+    calculate_speak_cost,
     calculate_transcribe_cost,
     calculate_translate_cost,
-    calculate_speak_cost,
-    calculate_ocr_cost,
 )
 
 
