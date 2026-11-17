@@ -1,0 +1,8 @@
+# Core dependencies for Bodhan Tool Server and Task Agent
+mcp==2.3.0
+pydantic==2.14.3
+httpx==0.28.1
+requests==2.34.2
+python-dotenv==1.2.4
+pillow==13.0.0
+pypdf==7.1.0
