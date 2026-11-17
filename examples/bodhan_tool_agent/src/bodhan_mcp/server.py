@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
 from mcp.server.mcpserver import MCPServer
 
@@ -179,9 +180,24 @@ def audio_summary_prompt(language: str, target_duration: str) -> str:
     )
 
 
+def start_server(
+    transport: str = "stdio",
+    host: str = "127.0.0.1",
+    port: int = 8000,
+    **kwargs: Any,
+) -> None:
+    """Start the Bodhan MCP server with chosen transport (stdio or streamable-http)."""
+    if transport == "streamable-http":
+        mcp_server.run(transport="streamable-http", host=host, port=port, **kwargs)
+    elif transport == "sse":
+        mcp_server.run(transport="sse", host=host, port=port, **kwargs)
+    else:
+        mcp_server.run(transport="stdio", **kwargs)
+
+
 def start_stdio_server() -> None:
-    """Start the MCP server over stdio transport."""
-    mcp_server.run(transport="stdio")
+    """Start the MCP server over stdio transport (default)."""
+    start_server(transport="stdio")
 
 
 if __name__ == "__main__":

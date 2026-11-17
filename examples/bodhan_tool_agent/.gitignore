@@ -1,5 +1,6 @@
 .env
 .venv/
+.bodhan_cache/
 __pycache__/
 *.pyc
 outputs/
