@@ -63,7 +63,7 @@ This guide provides a structured script to record your **5-minute (or less) demo
   ```bash
   pytest tests/ -v
   ```
-  > *"All 29 automated unit and integration tests pass."*
+  > *"All 39 automated unit, integration, and architectural contract tests pass."*
 
 #### 6. Wrap Up (4:45 – 5:00)
 - **What to say**:

@@ -1,4 +1,4 @@
-"""Autonomous Task Agent orchestrating Bodhan tools with budget and verification."""
+"""Autonomous Task Agent orchestrating Bodhan tools with budget reservations, MCP backend, and gated verification."""
 
 from __future__ import annotations
 
@@ -6,16 +6,13 @@ import time
 from pathlib import Path
 from typing import Any
 
-from bodhan_mcp.cost import CostTracker
-from bodhan_mcp.tools.inspect_tool import run_inspect_media
-from bodhan_mcp.tools.ocr import run_ocr
-from bodhan_mcp.tools.speak import run_speak
-from bodhan_mcp.tools.transcribe import run_transcribe
-from bodhan_mcp.tools.translate import run_translate
+from bodhan_mcp.cost import BudgetExceededError, CostTracker, estimate_tool_cost
 
+from bodhan_agent.backend import BaseToolBackend, get_tool_backend
 from bodhan_agent.llm import llm_client
 from bodhan_agent.reporter import RunReporter
 from bodhan_agent.verifier import artifact_verifier
+from bodhan_agent.workspace import WorkspaceSandbox
 
 
 class TaskAgent:
@@ -28,12 +25,19 @@ class TaskAgent:
         out_dir: str | Path = "./out",
         max_steps: int = 30,
         max_cost_inr: float = 20.0,
+        timeout_seconds: float = 300.0,
+        backend: BaseToolBackend | None = None,
     ):
         self.task = task
-        self.input_files = self._resolve_input_files(files or [])
         self.out_dir = Path(out_dir).resolve()
         self.max_steps = max_steps
         self.max_cost_inr = max_cost_inr
+        self.timeout_seconds = timeout_seconds
+
+        self.input_files = self._resolve_input_files(files or [])
+        self.sandbox = WorkspaceSandbox(allowed_roots=[self.out_dir, *self.input_files])
+        self.backend = backend or get_tool_backend()
+        self.discovered_tools = self.backend.list_tools()
 
         self.cost_tracker = CostTracker(max_cost_inr=self.max_cost_inr)
         self.reporter = RunReporter(self.out_dir)
@@ -53,51 +57,75 @@ class TaskAgent:
         return resolved
 
     def _dispatch_tool(self, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
-        """Dispatch a tool call to the corresponding Bodhan tool implementation."""
+        """Dispatch a tool call through the MCP backend with pre-call budget protection."""
         t0 = time.time()
-        tool_map = {
-            "bodhan_transcribe": run_transcribe,
-            "bodhan_translate": run_translate,
-            "bodhan_speak": run_speak,
-            "bodhan_ocr": run_ocr,
-            "inspect_media": run_inspect_media,
-        }
 
-        func = tool_map.get(tool_name)
-        if not func:
+        # Match bare filename or relative path to resolved input files if not directly present
+        for k in ("file_path", "audio_path", "image_path"):
+            if k in arguments and arguments[k]:
+                val = str(arguments[k])
+                if not Path(val).is_file():
+                    for inp in self.input_files:
+                        if inp.name == Path(val).name or inp.name == val:
+                            arguments[k] = str(inp)
+                            break
+
+        # Sandbox check: validate file paths if present in arguments
+        for k in ("file_path", "audio_path", "image_path"):
+            if k in arguments and arguments[k]:
+                try:
+                    self.sandbox.validate_path(arguments[k])
+                except Exception as e:
+                    return {
+                        "success": False,
+                        "error_code": "SECURITY_VIOLATION",
+                        "error": f"Sandbox security validation rejected path: {str(e)}",
+                        "cost_inr": 0.0,
+                        "latency_seconds": round(time.time() - t0, 2),
+                    }
+
+        # Pre-call budget reservation
+        estimated_cost = estimate_tool_cost(tool_name, arguments)
+        try:
+            token = self.cost_tracker.reserve(estimated_cost)
+        except BudgetExceededError as e:
             return {
                 "success": False,
-                "error": f"Unknown tool '{tool_name}'. Available: {list(tool_map.keys())}",
+                "error_code": "BUDGET_EXCEEDED",
+                "error": f"Pre-call budget limit exceeded: {str(e)}",
                 "cost_inr": 0.0,
                 "latency_seconds": round(time.time() - t0, 2),
+                "budget_exceeded": True,
             }
 
         try:
-            result = func(**arguments)
-            cost = float(result.get("cost_inr", 0.0))
+            # Execute through MCP client backend
+            result = self.backend.call_tool(tool_name, arguments)
+            actual_cost = float(result.get("cost_inr", 0.0))
 
-            # Record in cost tracker
-            if cost > 0:
-                self.cost_tracker.record_cost(
-                    model=tool_name,
-                    operation=tool_name,
-                    metric="inr",
-                    quantity=cost,
-                    cost_inr=cost,
-                    timestamp=time.time(),
-                )
-
+            # Commit actual cost & release unused reservation
+            self.cost_tracker.settle(
+                token=token,
+                actual_cost_inr=actual_cost,
+                model=tool_name,
+                operation=tool_name,
+                metric="inr",
+                quantity=actual_cost,
+                timestamp=time.time(),
+            )
             return result
         except Exception as e:
+            self.cost_tracker.release(token)
             return {
                 "success": False,
-                "error": f"Tool execution error: {str(e)}",
+                "error_code": "TOOL_EXECUTION_FAILED",
+                "error": f"Tool execution failed via MCP: {str(e)}",
                 "cost_inr": 0.0,
                 "latency_seconds": round(time.time() - t0, 2),
             }
 
     def run(self) -> dict[str, Any]:
-        """Execute the agent loop: Plan -> Act -> Verify -> Report."""
+        """Execute the agent loop: Plan -> Act -> Verify (Gated) -> Report."""
         start_time = time.time()
         status = "running"
         final_answer = ""
@@ -109,6 +137,12 @@ class TaskAgent:
         step = 0
         while step < self.max_steps:
             step += 1
+
+            # Check wall-clock timeout
+            if time.time() - start_time > self.timeout_seconds:
+                status = "timeout"
+                error_msg = f"Task execution exceeded timeout limit of {self.timeout_seconds:.1f}s."
+                break
 
             # Check budget
             if self.cost_tracker.is_budget_exceeded():
@@ -122,6 +156,7 @@ class TaskAgent:
                 files=self.input_files,
                 history=self.history,
                 step_number=step,
+                tools=self.discovered_tools,
             )
 
             plan_thought = decision.get("thought", "")
@@ -155,6 +190,11 @@ class TaskAgent:
             latency = time.time() - tool_start
             cost = float(tool_result.get("cost_inr", 0.0))
 
+            if tool_result.get("budget_exceeded"):
+                status = "budget_exceeded"
+                error_msg = tool_result.get("error")
+                break
+
             # Result summary
             if tool_name == "bodhan_transcribe":
                 summary = f"Transcribed {tool_result.get('duration_seconds', 0)}s audio: '{tool_result.get('text', '')[:80]}...'"
@@ -181,7 +221,7 @@ class TaskAgent:
                 cost_inr=cost,
             )
 
-            # Record in history
+            # Record in history (including data payload for LLM bounded context handoff)
             self.history.append({
                 "step": step,
                 "plan": plan_thought,
@@ -200,10 +240,17 @@ class TaskAgent:
         # Collect & move artifacts
         final_artifacts = self.reporter.collect_artifacts(candidate_artifacts)
 
-        # Verification step
+        # Verification step (Gated completion)
         verification_results: dict[str, Any] = {"verified_count": 0, "all_passed": True, "checks": []}
         if status == "completed" and final_artifacts:
-            verification_results = artifact_verifier.verify_artifacts(final_artifacts)
+            verification_results = artifact_verifier.verify_artifacts(
+                final_artifacts,
+                cost_tracker=self.cost_tracker,
+            )
+            # MANDATORY COMPLETION GATE: Fail task if verification does not pass
+            if not verification_results.get("all_passed", True):
+                status = "verification_failed"
+                error_msg = "Artifact verification failed: generated artifacts did not pass quality/fidelity checks."
 
         # Write reports
         self.reporter.write_result_md(
@@ -214,7 +261,7 @@ class TaskAgent:
             artifacts=final_artifacts,
             total_cost=cost_summary["total_cost_inr"],
             total_time=total_time,
-            impossible_reason=impossible_reason,
+            impossible_reason=impossible_reason or error_msg,
         )
 
         self.reporter.write_report_json(

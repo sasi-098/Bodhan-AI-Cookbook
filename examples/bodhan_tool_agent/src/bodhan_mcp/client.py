@@ -19,7 +19,6 @@ from bodhan_mcp.config import (
     TRANSCRIBE_KEY,
     TRANSLATE_KEY,
 )
-from bodhan_mcp.tools.media_utils import create_synthetic_wav
 
 
 class BodhanClient:
@@ -46,10 +45,12 @@ class BodhanClient:
     ) -> requests.Response:
         url = f"{self.base_url}{endpoint}"
         last_exception = None
+        last_response = None
 
         for attempt in range(max_retries):
             try:
                 resp = self.session.request(method, url, headers=headers, timeout=self.timeout, **kwargs)
+                last_response = resp
                 if resp.status_code == 429:
                     # Rate limit or quota hit - backoff
                     retry_after = float(resp.headers.get("Retry-After", 2 ** attempt))
@@ -63,7 +64,7 @@ class BodhanClient:
                         err = resp.json().get("error", {})
                         raise RuntimeError(
                             f"Bodhan API Error {resp.status_code} [{err.get('code', 'unknown')}]: "
-                            f"{err.get('message', resp.text)}"
+                            f"{err.get('message', resp.text)} (request_id={err.get('request_id', 'none')})"
                         )
                     except (ValueError, KeyError):
                         resp.raise_for_status()
@@ -71,6 +72,16 @@ class BodhanClient:
             except (requests.ConnectionError, requests.Timeout) as e:
                 last_exception = e
                 time.sleep(1.5 ** attempt)
+
+        if last_response is not None and not last_response.ok:
+            try:
+                err = last_response.json().get("error", {})
+                raise RuntimeError(
+                    f"Bodhan API Error {last_response.status_code} [{err.get('code', 'rate_limit')}]: "
+                    f"{err.get('message', last_response.text)} (request_id={err.get('request_id', 'none')})"
+                )
+            except Exception:
+                last_response.raise_for_status()
 
         raise RuntimeError(f"Bodhan API call failed after {max_retries} attempts: {last_exception}")
 
@@ -140,15 +151,37 @@ class BodhanClient:
             return translations.get(target_lang, f"[{target_lang}] {text}")
 
         headers = self._headers(TRANSLATE_KEY, content_type="application/json")
-        body: dict[str, Any] = {
-            "text": text,
-            "target_language": target_lang,
-        }
-        if source_lang:
-            body["source_language"] = source_lang
 
-        resp = self._execute_with_retry("POST", "/translate", headers=headers, json=body)
-        return resp.json().get("translation", "")
+        # 1. Primary Bodhan AI Gateway route: OpenAI-compatible /v1/chat/completions
+        gateway_body: dict[str, Any] = {
+            "model": "indic-translate",
+            "messages": [{"role": "user", "content": text}],
+            "target_language_code": target_lang,
+        }
+        if source_lang and source_lang != "auto":
+            gateway_body["source_language_code"] = source_lang
+
+        try:
+            resp = self._execute_with_retry("POST", "/v1/chat/completions", headers=headers, json=gateway_body)
+            data = resp.json()
+            if "choices" in data and len(data["choices"]) > 0:
+                content = data["choices"][0].get("message", {}).get("content", "").strip()
+                if content:
+                    return content
+            if "translation" in data:
+                return data["translation"]
+        except Exception as e:
+            # 2. Fallback to direct /translate route if 404 or unsupported on gateway
+            if "404" in str(e) or "Not Found" in str(e):
+                legacy_body: dict[str, Any] = {
+                    "text": text,
+                    "target_language": target_lang,
+                }
+                resp = self._execute_with_retry("POST", "/translate", headers=headers, json=legacy_body)
+                return resp.json().get("translation", "")
+            raise
+
+        return ""
 
     # ------------------------------------------------------------------------
     # Indic-Speak
@@ -165,18 +198,37 @@ class BodhanClient:
         out_p = Path(output_file) if output_file else Path(f"speech_{int(time.time()*1000)}.wav")
         out_p.parent.mkdir(parents=True, exist_ok=True)
 
-        # Default voices per language if not specified
+        # Official default voices per language from scripts/bodhan_api_rules.json
         default_voices = {
-            "hi": "Kavya",
-            "ta": "Anitha",
+            "as": "Prastuti",
             "bn": "Ishita",
-            "te": "Sravani",
+            "brx": "Gwrbw",
+            "doi": "Preeti",
+            "gu": "Dhara",
+            "hi": "Kavya",
+            "kn": "Deepika",
+            "kok": "Anjali",
+            "ks": "Zoon",
+            "mai": "Vaidehi",
+            "ml": "Lakshmi",
+            "mni": "Thoibi",
             "mr": "Anagha",
+            "ne": "Srijana",
+            "or": "Itishree",
+            "pa": "Kaur",
+            "sa": "Bharati",
+            "sat": "Phulmani",
+            "sd": "Moomal",
+            "ta": "Anitha",
+            "te": "Sravani",
+            "ur": "Saba",
             "en": "Amit",
         }
         selected_voice = voice or default_voices.get(language, "Amit")
 
         if MOCK_MODE:
+            from bodhan_mcp.tools.media_utils import create_synthetic_wav
+
             # Create a synthetic WAV file proportional to text length
             duration = max(1.0, min(25.0, len(text) * 0.05))
             return create_synthetic_wav(out_p, duration_sec=duration, sample_rate=24000)

@@ -16,6 +16,33 @@ SUPPORTED_LANGUAGES = {
     "sd-Arab", "ta", "te", "ur",
 }
 
+LANGUAGE_ALIASES = {
+    "english": "en",
+    "hindi": "hi",
+    "tamil": "ta",
+    "telugu": "te",
+    "bengali": "bn",
+    "marathi": "mr",
+    "gujarati": "gu",
+    "kannada": "kn",
+    "malayalam": "ml",
+    "punjabi": "pa",
+    "odia": "or",
+    "oriya": "or",
+    "assamese": "as",
+    "urdu": "ur",
+    "sanskrit": "sa",
+    "nepali": "ne",
+    "sindhi": "sd",
+    "konkani": "kok",
+    "kashmiri": "ks",
+    "maithili": "mai",
+    "santali": "sat",
+    "bodo": "brx",
+    "dogri": "doi",
+    "manipuri": "mni",
+}
+
 
 def run_translate(
     text: str,
@@ -41,9 +68,11 @@ def run_translate(
 
     # Normalize target language code
     norm_target = target_lang.strip().lower()
+    norm_target = LANGUAGE_ALIASES.get(norm_target, norm_target)
     if norm_target not in SUPPORTED_LANGUAGES:
         return {
             "success": False,
+            "error_code": "UNSUPPORTED_LANGUAGE",
             "error": (
                 f"Unsupported target language '{target_lang}'. "
                 f"Bodhan Indic-Translate only supports Indic languages and English "
@@ -54,6 +83,8 @@ def run_translate(
         }
 
     norm_source = source_lang.strip().lower() if source_lang else None
+    if norm_source:
+        norm_source = LANGUAGE_ALIASES.get(norm_source, norm_source)
 
     try:
         # Check if Indic-to-Indic pivot through English is needed
@@ -118,6 +149,7 @@ def run_translate(
     except Exception as e:
         return {
             "success": False,
+            "error_code": "TRANSLATION_FAILED",
             "error": f"Translation failed: {str(e)}",
             "translation": "",
             "cost_inr": 0.0,

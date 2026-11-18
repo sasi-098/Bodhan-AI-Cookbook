@@ -38,10 +38,22 @@ def inspect_audio_file(path: str | Path) -> dict[str, Any]:
                 "size_bytes": p.stat().st_size,
             }
     except wave.Error:
-        # Fallback approximation for other audio formats
         size = p.stat().st_size
-        # Assuming typical 16kHz mono 16-bit PCM: ~32,000 bytes/sec
-        est_duration = max(1.0, round(size / 32000.0, 2))
+        # If it has a .wav suffix or size < 44 bytes (minimum WAV header), it's corrupted/invalid WAV
+        if p.suffix.lower() == ".wav" or size < 44:
+            return {
+                "format": p.suffix.lstrip(".").lower(),
+                "channels": 0,
+                "sample_width": 0,
+                "framerate": 0,
+                "frames": 0,
+                "duration_seconds": 0.0,
+                "size_bytes": size,
+                "is_corrupted": True,
+                "error": "Corrupted or invalid WAV file header",
+            }
+        # Fallback approximation for compressed audio formats (mp3, ogg, m4a)
+        est_duration = round(size / 32000.0, 2)
         return {
             "format": p.suffix.lstrip(".").lower(),
             "channels": 1,
@@ -206,7 +218,15 @@ def split_pdf_to_images(
         if not extracted:
             # Fallback: render text as image using Pillow
             img = Image.new("RGB", (1200, 1600), "white")
-            # Save generated page
+            page_text = page.extract_text() or ""
+            if page_text:
+                from PIL import ImageDraw
+                draw = ImageDraw.Draw(img)
+                y = 40
+                for line in page_text.splitlines()[:50]:
+                    if line.strip():
+                        draw.text((40, y), line.strip()[:100], fill="black")
+                        y += 30
             img.save(page_img_path, "PNG")
 
         image_paths.append(page_img_path)

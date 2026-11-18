@@ -14,6 +14,7 @@ import argparse
 import sys
 
 from bodhan_agent.agent import TaskAgent
+from bodhan_agent.backend import get_tool_backend
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -51,6 +52,18 @@ def main(argv: list[str] | None = None) -> int:
         type=float,
         help="Maximum allowed budget in INR.",
     )
+    parser.add_argument(
+        "--timeout-seconds",
+        default=300.0,
+        type=float,
+        help="Wall-clock execution timeout in seconds.",
+    )
+    parser.add_argument(
+        "--backend",
+        choices=["inprocess", "stdio"],
+        default="inprocess",
+        help="MCP backend to use for dynamic tool discovery and execution.",
+    )
 
     args = parser.parse_args(argv)
 
@@ -58,7 +71,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Task: {args.task}")
     print(f"Inputs: {args.files}")
     print(f"Output directory: {args.out}")
-    print(f"Max steps: {args.max_steps} | Max budget: ₹{args.max_cost_inr:.2f} INR")
+    print(f"Max steps: {args.max_steps} | Max budget: ₹{args.max_cost_inr:.2f} INR | Timeout: {args.timeout_seconds}s")
+    print(f"MCP Backend: {args.backend}")
 
     agent = TaskAgent(
         task=args.task,
@@ -66,6 +80,8 @@ def main(argv: list[str] | None = None) -> int:
         out_dir=args.out,
         max_steps=args.max_steps,
         max_cost_inr=args.max_cost_inr,
+        timeout_seconds=args.timeout_seconds,
+        backend=get_tool_backend(args.backend),
     )
 
     result = agent.run()

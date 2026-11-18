@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import tempfile
 import time
 from pathlib import Path
 from typing import Any
 
-from bodhan_mcp.cache import cache
+from bodhan_mcp.cache import CACHE_AUDIO_DIR, cache
 from bodhan_mcp.client import bodhan_client
 from bodhan_mcp.cost import calculate_speak_cost
 from bodhan_mcp.tools.media_utils import (
@@ -35,12 +34,15 @@ def run_speak(
     if not text or not text.strip():
         return {
             "success": False,
+            "error_code": "EMPTY_INPUT",
             "error": "Input text cannot be empty.",
             "audio_file": "",
             "cost_inr": 0.0,
         }
 
     norm_lang = language.strip().lower()
+    from bodhan_mcp.tools.translate import LANGUAGE_ALIASES
+    norm_lang = LANGUAGE_ALIASES.get(norm_lang, norm_lang)
 
     # Determine destination audio path
     if output_path:
@@ -54,63 +56,62 @@ def run_speak(
     try:
         # Split into short sentence chunks to stay under model limits
         chunks = split_text_into_sentences(text, max_chunk_chars=220)
-        temp_audio_files: list[Path] = []
+        chunk_audio_files: list[Path] = []
         total_cost = 0.0
 
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            tmp_path = Path(tmp_dir)
-            for idx, chunk in enumerate(chunks):
-                if not chunk.strip():
-                    continue
+        for chunk in chunks:
+            if not chunk.strip():
+                continue
 
-                cache_key = cache.compute_key(
-                    "indic-speak",
-                    chunk,
+            cache_key = cache.compute_key(
+                "indic-speak",
+                chunk,
+                language=norm_lang,
+                voice=voice,
+                style=style,
+            )
+            cached_res = cache.get(cache_key)
+            persistent_audio_file = CACHE_AUDIO_DIR / f"{cache_key}.wav"
+
+            if cached_res and persistent_audio_file.is_file():
+                # Direct cache hit: file exists on disk
+                chunk_cost = 0.0
+            else:
+                bodhan_client.synthesize_speech_chunk(
+                    text=chunk,
                     language=norm_lang,
                     voice=voice,
                     style=style,
+                    output_file=persistent_audio_file,
                 )
-                cached_res = cache.get(cache_key)
+                chunk_cost = calculate_speak_cost(len(chunk))
+                total_cost += chunk_cost
+                cache.set(
+                    cache_key,
+                    {
+                        "audio_file": str(persistent_audio_file),
+                        "chars_count": len(chunk),
+                        "cost_inr": chunk_cost,
+                    },
+                )
 
-                chunk_audio_file = tmp_path / f"part_{idx:03d}.wav"
+            chunk_audio_files.append(persistent_audio_file)
 
-                if cached_res and Path(cached_res["audio_file"]).is_file():
-                    # Copy cached audio
-                    chunk_audio_file.write_bytes(Path(cached_res["audio_file"]).read_bytes())
-                else:
-                    bodhan_client.synthesize_speech_chunk(
-                        text=chunk,
-                        language=norm_lang,
-                        voice=voice,
-                        style=style,
-                        output_file=chunk_audio_file,
-                    )
-                    chunk_cost = calculate_speak_cost(len(chunk))
-                    total_cost += chunk_cost
-                    cache.set(
-                        cache_key,
-                        {
-                            "audio_file": str(chunk_audio_file),
-                            "chars_count": len(chunk),
-                            "cost_inr": chunk_cost,
-                        },
-                    )
+        if not chunk_audio_files:
+            return {
+                "success": False,
+                "error_code": "SYNTHESIS_FAILED",
+                "error": "No audio chunks could be synthesized.",
+                "audio_file": "",
+                "cost_inr": 0.0,
+            }
 
-                temp_audio_files.append(chunk_audio_file)
-
-            if not temp_audio_files:
-                return {
-                    "success": False,
-                    "error": "No audio chunks could be synthesized.",
-                    "audio_file": "",
-                    "cost_inr": 0.0,
-                }
-
-            # Concatenate chunks into final WAV
-            concatenate_wav_files(temp_audio_files, final_output)
+        # Concatenate persistent chunks into final output WAV
+        concatenate_wav_files(chunk_audio_files, final_output)
 
         audio_info = inspect_audio_file(final_output)
         latency_sec = round(time.time() - start_time, 2)
+        nominal_cost = calculate_speak_cost(len(text))
 
         return {
             "success": True,
@@ -123,12 +124,15 @@ def run_speak(
             "characters_count": len(text),
             "chunks_count": len(chunks),
             "cost_inr": round(total_cost, 4),
+            "nominal_cost_inr": round(nominal_cost, 4),
+            "is_cached": total_cost == 0.0 and len(chunk_audio_files) > 0,
             "latency_seconds": latency_sec,
         }
 
     except Exception as e:
         return {
             "success": False,
+            "error_code": "SYNTHESIS_FAILED",
             "error": f"Speech synthesis failed: {str(e)}",
             "audio_file": "",
             "cost_inr": 0.0,

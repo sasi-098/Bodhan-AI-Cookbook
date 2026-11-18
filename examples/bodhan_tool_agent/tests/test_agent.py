@@ -106,5 +106,5 @@ def test_budget_enforcement():
             max_cost_inr=0.000001,
         )
         res = agent.run()
-        # Should stop cleanly with budget_exceeded
-        assert res["status"] in ("budget_exceeded", "completed")
+        # Must strictly stop with budget_exceeded due to pre-call reservation protection
+        assert res["status"] == "budget_exceeded"

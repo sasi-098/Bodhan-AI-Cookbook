@@ -224,10 +224,10 @@ Run the full unit and integration test suite:
 pytest examples/bodhan_tool_agent/tests/ -v
 ```
 
-All 25 automated tests validate:
-- Chunking & stitching algorithms (audio chunking, WAV merging, sentence tokenization).
-- Unicode script and language identification across 10 Indic scripts.
-- Cost calculations & budget enforcement.
-- MCP Server interface, tools, resources (`bodhan://voices`, `bodhan://pricing`), and prompts.
-- Tool limit handling, language validation, and unsupported language rejection.
-- End-to-end task agent execution, honest failure detection, and artifact verification.
+All 39 automated unit, integration, and architectural contract tests validate:
+- **10 Architectural Contracts**: MCP dynamic tool discovery, pre-call atomic budget reservations (`BudgetExceededError`), bounded untrusted context handoff (`<untrusted_content>`), CER & number-preservation verification gating, persistent audio cache across restarts, path traversal sandbox rejection, prompt injection safety, and structured API error handling.
+- **Chunking & Stitching**: Audio splitting (≤ 25s chunks), WAV header validation, lossless concatenation, and Indic danda (`।`) sentence splitting.
+- **Unicode Script & Language Detection**: In-memory script detection across 10 Indic scripts at zero latency and zero cost.
+- **Cost Calculations & Rate Cards**: Character, duration, and page calculations matching Bodhan's official rate card.
+- **MCP Server Protocol**: 5 tools, 2 resources (`bodhan://voices`, `bodhan://pricing`), and prompt templates over stdio and streamable HTTP.
+- **End-to-End Task Agent**: Autonomous ReAct loop, honest rejection of impossible tasks (e.g. French translation), and complete audit logging (`trace.jsonl`, `report.json`, `result.md`).

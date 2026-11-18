@@ -7,8 +7,14 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-# Automatically load .env if present
+# Automatically load .env if present from cwd, recipe directory, or repo root
 load_dotenv()
+_recipe_env = Path(__file__).resolve().parents[2] / ".env"
+if _recipe_env.is_file():
+    load_dotenv(_recipe_env)
+_repo_env = Path(__file__).resolve().parents[4] / ".env"
+if _repo_env.is_file():
+    load_dotenv(_repo_env)
 
 BASE_URL = os.environ.get("BODHAN_BASE_URL", "https://api.bodhan.ai").rstrip("/")
 

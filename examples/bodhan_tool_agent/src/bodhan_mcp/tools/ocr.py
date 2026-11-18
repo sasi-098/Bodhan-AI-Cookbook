@@ -27,6 +27,7 @@ def run_ocr(
     if not p.is_file():
         return {
             "success": False,
+            "error_code": "FILE_NOT_FOUND",
             "error": f"File not found: {file_path}",
             "markdown": "",
             "blocks": [],
@@ -50,6 +51,7 @@ def run_ocr(
             else:
                 return {
                     "success": False,
+                    "error_code": "UNSUPPORTED_FILE_TYPE",
                     "error": f"Unsupported file extension '{suffix}'. Expected an image (PNG, JPG) or PDF.",
                     "markdown": "",
                     "blocks": [],
@@ -100,6 +102,7 @@ def run_ocr(
     except Exception as e:
         return {
             "success": False,
+            "error_code": "OCR_FAILED",
             "error": f"OCR processing failed: {str(e)}",
             "markdown": "",
             "blocks": [],

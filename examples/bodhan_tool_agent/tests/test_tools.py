@@ -1,6 +1,7 @@
 """Unit tests for the 5 MCP tools."""
 
 import tempfile
+import time
 from pathlib import Path
 
 from bodhan_mcp.tools.inspect_tool import run_inspect_media
@@ -56,12 +57,14 @@ def test_translate_indic_to_indic_pivot():
 def test_speak_tool():
     with tempfile.TemporaryDirectory() as tmp_dir:
         out_wav = Path(tmp_dir) / "test_out.wav"
-        res = run_speak("नमस्ते, आप कैसे हैं?", language="hi", output_path=str(out_wav))
+        unique_text = f"नमस्ते, आप कैसे हैं? {time.time()}"
+        res = run_speak(unique_text, language="hi", output_path=str(out_wav))
         assert res["success"] is True
         assert Path(res["audio_file"]).is_file()
         assert res["language"] == "hi"
         assert res["duration_seconds"] > 0
         assert res["cost_inr"] > 0
+        assert res["nominal_cost_inr"] > 0
 
 
 def test_ocr_tool():

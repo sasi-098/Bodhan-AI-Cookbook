@@ -87,7 +87,7 @@ All 6 demo tasks (including the impossible French translation task) ran successf
 | Bengali female speech | `bengali_paragraph.txt` | Completed | ₹0.1008 | 0.16s | `demo_5_bengali_speech/result.md` |
 | French video translation | `sample_video.mp4` | Impossible Task | ₹0.0000 | 0.00s | `demo_6_french_impossible/result.md` |
 
-- **Automated Tests**: 29/29 unit & integration tests pass with 100% green coverage (`pytest tests/ -v`).
+- **Automated Tests**: 39/39 unit, integration, and architectural contract tests pass with 100% green coverage (`pytest tests/ -v`), including 10 dedicated contract tests verifying MCP dynamic discovery, pre-call atomic budget reservations, bounded untrusted context handoff, CER/number preservation gating, audio persistence across restarts, and workspace sandbox isolation.
 - **Self-Evaluation Scorecard**: 8/8 benchmark tasks pass with 100% pass rate (`python self_eval.py`).
 
 ## Demo video

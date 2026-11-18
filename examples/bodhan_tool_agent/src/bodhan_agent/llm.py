@@ -40,23 +40,58 @@ class LLMClient:
         files: list[Path],
         history: list[dict[str, Any]],
         step_number: int,
+        tools: list[Any] | None = None,
     ) -> dict[str, Any]:
         """Decide the next action: call a tool, return final answer, or declare impossible task."""
         if self.is_offline:
             return self._heuristic_fallback_planner(task, files, history, step_number)
 
         # Online LLM calling via OpenAI-compatible endpoint
-        messages = [{"role": "system", "content": AGENT_SYSTEM_PROMPT}]
+        system_content = AGENT_SYSTEM_PROMPT
+        if tools:
+            tool_descriptions = "\n\nDYNAMICALLY DISCOVERED MCP TOOLS:\n"
+            for t in tools:
+                name = getattr(t, "name", str(t))
+                desc = getattr(t, "description", "")
+                tool_descriptions += f"- {name}: {desc}\n"
+            system_content += tool_descriptions
+
+        messages = [{"role": "system", "content": system_content}]
         
         # User message with initial context
-        file_desc = [f"- {f.name} ({f.stat().st_size} bytes)" for f in files]
+        file_desc = [f"- {f.name} (path: '{f.as_posix()}', {f.stat().st_size} bytes)" for f in files]
         user_prompt = (
             f"TASK INSTRUCTION:\n{task}\n\n"
             f"INPUT FILES:\n" + "\n".join(file_desc) + "\n\n"
             f"EXECUTION HISTORY (Step {step_number}):\n"
         )
         for h in history:
-            user_prompt += f"\n[Step {h.get('step')}]:\nPlan: {h.get('plan')}\nTool: {h.get('tool')}\nResult: {h.get('result_summary')}\n"
+            step_idx = h.get("step")
+            tool_name = h.get("tool")
+            plan_desc = h.get("plan")
+            summary = h.get("result_summary")
+            data = h.get("data", {})
+
+            # Extract actual payload for bounded context handoff
+            payload_text = ""
+            if isinstance(data, dict):
+                if "markdown" in data and data["markdown"]:
+                    payload_text = data["markdown"]
+                elif "text" in data and data["text"]:
+                    payload_text = data["text"]
+                elif "translation" in data and data["translation"]:
+                    payload_text = data["translation"]
+
+            user_prompt += f"\n[Step {step_idx}]:\nPlan: {plan_desc}\nTool: {tool_name}\nSummary: {summary}\n"
+            if payload_text:
+                # Truncate to 2,000 chars to avoid overflowing LLM context
+                truncated = payload_text[:2000] + ("\n... [content truncated]" if len(payload_text) > 2000 else "")
+                user_prompt += (
+                    f"Extracted Content:\n"
+                    f"<untrusted_content provenance=\"{tool_name}\">\n"
+                    f"{truncated}\n"
+                    f"</untrusted_content>\n"
+                )
 
         user_prompt += "\nWhat is your next action? Respond strictly with the required JSON shape."
         messages.append({"role": "user", "content": user_prompt})

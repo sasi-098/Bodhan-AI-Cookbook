@@ -77,3 +77,5 @@ class ResponseCache:
 
 # Global cache instance
 cache = ResponseCache()
+CACHE_AUDIO_DIR = CACHE_DIR / "audio"
+CACHE_AUDIO_DIR.mkdir(parents=True, exist_ok=True)

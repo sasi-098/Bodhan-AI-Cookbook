@@ -22,10 +22,14 @@ def run_transcribe(
     30 seconds into chunks, transcribing each, and joining the results.
     """
     start_time = time.time()
+    if language:
+        from bodhan_mcp.tools.translate import LANGUAGE_ALIASES
+        language = LANGUAGE_ALIASES.get(language.strip().lower(), language)
     p = Path(audio_path)
     if not p.is_file():
         return {
             "success": False,
+            "error_code": "FILE_NOT_FOUND",
             "error": f"Audio file not found: {audio_path}",
             "text": "",
             "cost_inr": 0.0,
@@ -35,6 +39,15 @@ def run_transcribe(
     try:
         audio_info = inspect_audio_file(p)
         total_duration = audio_info.get("duration_seconds", 0.0)
+        if audio_info.get("is_corrupted") or total_duration <= 0.0:
+            return {
+                "success": False,
+                "error_code": "CORRUPTED_MEDIA",
+                "error": "Corrupted audio file or duration is 0 seconds.",
+                "text": "",
+                "cost_inr": 0.0,
+                "duration_seconds": 0.0,
+            }
 
         # Automatic chunking if audio > 28 seconds
         chunks = chunk_wav_audio(p, chunk_duration_sec=25.0) if total_duration > 28.0 else [p]
@@ -80,6 +93,7 @@ def run_transcribe(
     except Exception as e:
         return {
             "success": False,
+            "error_code": "TRANSCRIPTION_FAILED",
             "error": f"Transcription failed: {str(e)}",
             "text": "",
             "cost_inr": 0.0,
